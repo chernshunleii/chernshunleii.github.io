@@ -818,6 +818,36 @@ kbd {
   border-radius: 4px; padding: 1px 6px; font-size: 11px; font-family: inherit; color: var(--gray-600);
 }
 
+/* ===== 背题模式 ===== */
+.mem-actions {
+  display: flex;
+  gap: 12px;
+  justify-content: center;
+  margin-top: 20px;
+  flex-wrap: wrap;
+}
+.mem-hint {
+  text-align: center;
+  font-size: 12px;
+  color: var(--gray-400);
+  margin-top: 10px;
+}
+.mem-hint kbd {
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  border-radius: 4px;
+  padding: 1px 6px;
+  font-size: 11px;
+}
+.mem-stat-row {
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+  font-size: 13px;
+  color: var(--gray-500);
+  font-weight: 600;
+  align-items: center;
+}
 </style>
 </head>
 <body>
@@ -839,6 +869,10 @@ kbd {
       </button>
       <button class="nav-item" data-page="practice" onclick="showPage('practice')">
         <span class="nav-icon">✏️</span> 练习模式
+      </button>
+      <button class="nav-item" data-page="memorize" onclick="showPage('memorize')">
+        <span class="nav-icon">🧠</span> 背题模式
+        <span class="nav-badge" id="memBadge">0</span>
       </button>
       <button class="nav-item" data-page="browse" onclick="showPage('browse')">
         <span class="nav-icon">📋</span> 题目浏览
@@ -1099,13 +1133,14 @@ function showPage(page) {
   document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
   const nav = document.querySelector(`[data-page="${page}"]`);
   if (nav) nav.classList.add('active');
-  const titles = { overview: '概览', practice: '练习模式', browse: '题目浏览', favorites: '收藏夹', wrong: '错题本', settings: '设置' };
+  const titles = { overview: '概览', practice: '练习模式', memorize: '背题模式', browse: '题目浏览', favorites: '收藏夹', wrong: '错题本', settings: '设置' };
   document.getElementById('pageTitle').textContent = titles[page] || page;
   document.getElementById('sidebar').classList.remove('open');
   document.getElementById('sidebarOverlay').classList.remove('open');
   switch (page) {
     case 'overview': renderOverview(); break;
     case 'practice': renderPractice(); break;
+    case 'memorize': renderMemorize(); break;
     case 'browse': renderBrowse(); break;
     case 'favorites': renderQuestionList('favorites'); break;
     case 'wrong': renderQuestionList('wrong'); break;
@@ -1144,6 +1179,11 @@ function renderOverview() {
           <div class="progress-bar-bg"><div class="progress-bar-fill blue" style="width:${total ? answeredCount / total * 100 : 0}%"></div></div>
           <span style="width:50px;text-align:left;font-weight:600;">${total ? Math.round(answeredCount / total * 100) : 0}%</span>
         </div>
+        <div class="progress-bar-container">
+          <span>背题掌握</span>
+          <div class="progress-bar-bg"><div class="progress-bar-fill yellow" style="width:${total ? mastered.size / total * 100 : 0}%"></div></div>
+          <span style="width:50px;text-align:left;font-weight:600;">${total ? Math.round(mastered.size / total * 100) : 0}%</span>
+        </div>
       </div>
 
       <div class="progress-section">
@@ -1151,6 +1191,8 @@ function renderOverview() {
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           ${hasPracticeSession ? '<button class="btn btn-primary" onclick="continuePractice()">▶️ 继续上次练习</button>' : ''}
           <button class="btn btn-primary" onclick="showPage('practice')">🎯 自定义组卷</button>
+          <button class="btn btn-primary" onclick="showPage('memorize')">🧠 背题模式</button>
+          ${hasMemSession ? '<button class="btn btn-secondary" onclick="continueMemorize()">▶️ 继续背题</button>' : ''}
           <button class="btn btn-secondary" onclick="startPractice('all')">📖 全部练习</button>
           <button class="btn btn-secondary" onclick="startPractice('random20')">🎲 随机20题</button>
           <button class="btn btn-secondary" onclick="startPractice('new20')">🆕 未做20题</button>
@@ -1333,7 +1375,7 @@ function renderPractice() {
           `}
         </div>
       </div>
-      <p style="text-align:center;font-size:12px;color:var(--gray-400);margin-top:10px;">原题号 ${esc(q.n)} · 提示：填空题输入框内按 <kbd>Enter</kbd> 可提交/下一题</p>
+      <p style="text-align:center;font-size:12px;color:var(--gray-400);margin-top:10px;">原题号 ${esc(q.n)} · 提示：单选/判断题点选即判对错、答对自动进入下一题；填空题输入框内按 <kbd>Enter</kbd> 可提交/下一题</p>
     </div>`;
 
   updatePracticeStats();
@@ -1402,6 +1444,8 @@ function selectOption(opt) {
       item.classList.toggle('selected', selected.includes(optionKey));
     });
   }
+  // 单选题/判断题：点选即判定对错（省略「提交答案」步骤）
+  if (q.t === 0 || q.t === 2) submitAnswer();
 }
 
 function submitAnswer() {
@@ -1434,8 +1478,10 @@ function submitAnswer() {
   savePracticeSession();
   renderPractice();
 
-  if (settings.autoNext && isCorrect && practiceIndex < practiceQuestions.length - 1) {
-    setTimeout(() => nextQuestion(), 800);
+  // 单选题/判断题答对直接跳下一题；其余题型遵循「答对自动下一题」设置
+  if (isCorrect && practiceIndex < practiceQuestions.length - 1) {
+    if (q.t === 0 || q.t === 2) setTimeout(() => nextQuestion(), 300);
+    else if (settings.autoNext) setTimeout(() => nextQuestion(), 800);
   }
 }
 
@@ -1623,7 +1669,8 @@ function renderQuestionList(mode) {
         <p>${mode === 'favorites' ? '在练习时点击星标即可收藏' : '完成练习后，答错的题目会自动进入错题本'}</p>
       </div>`;
   } else {
-    const startBtn = `<button class="btn btn-primary btn-sm" onclick="startPractice('${mode === 'favorites' ? 'fav' : 'wrong'}')">🎯 练习这 ${qs.length} 题</button>`;
+    const startBtn = `<button class="btn btn-primary btn-sm" onclick="startPractice('${mode === 'favorites' ? 'fav' : 'wrong'}')">🎯 练习这 ${qs.length} 题</button>` +
+      ` <button class="btn btn-secondary btn-sm" onclick="startMemList('${mode === 'favorites' ? 'fav' : 'wrong'}')">🧠 背这些题</button>`;
     listHtml = `<div style="margin-bottom:16px;">${startBtn}</div>` + qs.map(q => {
       const a = answered[q.i];
       const status = a ? (a.correct ? '<span style="color:var(--success);font-size:16px;">✓</span>' : '<span style="color:var(--danger);font-size:16px;">✗</span>') : '';
@@ -1648,6 +1695,355 @@ function renderQuestionList(mode) {
   document.getElementById('topbarActions').innerHTML = '';
 }
 
+// ===================== 背题模式 =====================
+// 直接显示答案+解析 → 自评「记住了 / 没记住」
+// 「记住了」标记为已掌握；「没记住」取消掌握并自动排到本轮末尾重背一次
+let mastered = new Set(LS.get('mastered', []));
+const MEM_SESSION_KEY = 'memSession';
+let hasMemSession = false;
+let memSetup = { s: [], t: [], d: [], status: [], count: 20, order: 'random' };
+const MEM_STATUS_LABELS = { all: '全部', unmastered: '未掌握', mastered: '已掌握', wrong: '错题', fav: '收藏' };
+
+let memQuestions = [];
+let memIndex = 0;
+let memRoundKnown = 0;
+let memRoundUnknown = 0;
+let memRetried = new Set();
+let memFinished = false;
+
+function memPool() {
+  let pool = QUESTIONS;
+  if (memSetup.s.length) pool = pool.filter(q => memSetup.s.includes(q.s));
+  if (memSetup.t.length) pool = pool.filter(q => memSetup.t.includes(TYPE_NAMES[q.t]));
+  if (memSetup.d.length) pool = pool.filter(q => memSetup.d.includes(q.d));
+  if (memSetup.status.length && !memSetup.status.includes('all')) {
+    pool = pool.filter(q =>
+      (memSetup.status.includes('unmastered') && !mastered.has(q.i)) ||
+      (memSetup.status.includes('mastered') && mastered.has(q.i)) ||
+      (memSetup.status.includes('wrong') && wrongAnswers.has(q.i)) ||
+      (memSetup.status.includes('fav') && favorites.has(q.i)));
+  }
+  return pool;
+}
+function memToggleSetup(kind, val) {
+  if (val === 'all') {
+    memSetup[kind] = [];
+  } else {
+    const arr = memSetup[kind];
+    const i = arr.indexOf(val);
+    if (i >= 0) arr.splice(i, 1); else arr.push(val);
+  }
+  memUpdateSetupUI();
+}
+function memSetSingle(kind, val) {
+  memSetup[kind] = kind === 'count' ? Number(val) : val;
+  memUpdateSetupUI();
+}
+function memUpdateSetupUI() {
+  document.querySelectorAll('#memSetupPanel .chip[data-kind]').forEach(chip => {
+    const kind = chip.dataset.kind, val = chip.dataset.val;
+    if (kind === 'count' || kind === 'order') {
+      chip.classList.toggle('active', String(memSetup[kind]) === String(val));
+    } else {
+      const isAll = val === 'all';
+      chip.classList.toggle('active', isAll ? memSetup[kind].length === 0 : memSetup[kind].includes(val));
+    }
+  });
+  memUpdateSetupCount();
+}
+function memUpdateSetupCount() {
+  const el = document.getElementById('memCountText');
+  if (!el) return;
+  const pool = memPool();
+  const n = Number(memSetup.count) || pool.length;
+  const un = pool.filter(q => !mastered.has(q.i)).length;
+  el.innerHTML = `当前筛选共 <strong>${pool.length}</strong> 题（未掌握 <strong>${un}</strong>）${Number(memSetup.count) ? `，本次将背 <strong>${Math.min(pool.length, n)}</strong> 题` : ''}`;
+}
+function startMemFromSetup() {
+  let pool = memPool();
+  if (!pool.length) { showToast('没有符合条件的题目'); return; }
+  pool = memSetup.order === 'random' ? shuffleArray(pool) : [...pool];
+  const n = Number(memSetup.count) || pool.length;
+  beginMemorize(pool.slice(0, Math.min(n, pool.length)));
+}
+function startMemList(mode) {
+  let list = [];
+  if (mode === 'wrong') {
+    list = QUESTIONS.filter(q => wrongAnswers.has(q.i));
+    if (!list.length) { showToast('暂无错题，先去练习吧！'); return; }
+  } else if (mode === 'fav') {
+    list = QUESTIONS.filter(q => favorites.has(q.i));
+    if (!list.length) { showToast('暂无收藏题目'); return; }
+  } else {
+    list = [...QUESTIONS];
+  }
+  if (settings.randomOrder) list = shuffleArray(list);
+  beginMemorize(list);
+}
+function beginMemorize(list) {
+  memQuestions = list;
+  memIndex = 0;
+  memRoundKnown = 0;
+  memRoundUnknown = 0;
+  memRetried = new Set();
+  memFinished = false;
+  saveMemSession();
+  showPage('memorize');
+}
+function saveMemSession() {
+  if (!memQuestions.length) { hasMemSession = false; localStorage.removeItem('fq_' + MEM_SESSION_KEY); return; }
+  LS.set(MEM_SESSION_KEY, {
+    questionIds: memQuestions.map(q => q.i),
+    memIndex, memRoundKnown, memRoundUnknown,
+    retried: [...memRetried], memFinished, savedAt: Date.now()
+  });
+  hasMemSession = true;
+}
+function loadMemSession() {
+  try {
+    const s = LS.get(MEM_SESSION_KEY, null);
+    if (!s || !Array.isArray(s.questionIds) || !s.questionIds.length) return false;
+    const restored = s.questionIds.map(id => QMAP.get(id)).filter(Boolean);
+    if (!restored.length) return false;
+    memQuestions = restored;
+    memIndex = Math.min(Math.max(Number(s.memIndex) || 0, 0), memQuestions.length - 1);
+    memRoundKnown = Number(s.memRoundKnown) || 0;
+    memRoundUnknown = Number(s.memRoundUnknown) || 0;
+    memRetried = new Set(Array.isArray(s.retried) ? s.retried : []);
+    memFinished = !!s.memFinished;
+    hasMemSession = true;
+    return true;
+  } catch (e) {
+    localStorage.removeItem('fq_' + MEM_SESSION_KEY);
+    hasMemSession = false;
+    return false;
+  }
+}
+function clearMemSession() {
+  memQuestions = []; memIndex = 0;
+  memRoundKnown = 0; memRoundUnknown = 0;
+  memRetried = new Set(); memFinished = false;
+  hasMemSession = false;
+  localStorage.removeItem('fq_' + MEM_SESSION_KEY);
+}
+function continueMemorize() {
+  if (loadMemSession()) showPage('memorize');
+  else { showToast('没有可继续的背题'); renderMemSetup(); }
+}
+function showMemSetup() {
+  renderMemSetup();
+}
+
+// ---- 背题选题面板 ----
+function renderMemSetup() {
+  const chipRow = (label, kind, options, counts, labelMap) => `
+    <div class="chip-label">${label}</div>
+    <div class="chip-group">
+      ${options.map(op => {
+        const isAll = op === 'all';
+        const active = isAll ? memSetup[kind].length === 0 : memSetup[kind].includes(op);
+        const text = labelMap ? labelMap[op] : (isAll ? '全部' : op);
+        return `<div class="chip ${active ? 'active' : ''}" data-kind="${kind}" data-val="${op}" onclick="memToggleSetup('${kind}','${op}')">${text}${counts && counts[op] != null ? `<span class="chip-num">${counts[op]}</span>` : ''}</div>`;
+      }).join('')}
+    </div>`;
+
+  const singleChipRow = (label, kind, options) => `
+    <div class="chip-label">${label}</div>
+    <div class="chip-group">
+      ${options.map(([val, text]) => `
+        <div class="chip ${String(memSetup[kind]) === String(val) ? 'active' : ''}" data-kind="${kind}" data-val="${val}" onclick="memSetSingle('${kind}','${val}')">${text}</div>`).join('')}
+    </div>`;
+
+  const subjCounts = { all: QUESTIONS.length };
+  SUBJECTS.forEach(s => subjCounts[s] = QUESTIONS.filter(q => q.s === s).length);
+  const typeCounts = { all: QUESTIONS.length };
+  TYPE_NAMES.forEach(t => typeCounts[t] = QUESTIONS.filter(q => TYPE_NAMES[q.t] === t).length);
+  const diffList = [...new Set(QUESTIONS.map(q => q.d))];
+  const diffCounts = { all: QUESTIONS.length };
+  diffList.forEach(d => diffCounts[d] = QUESTIONS.filter(q => q.d === d).length);
+
+  document.getElementById('contentArea').innerHTML = `
+    <div class="practice-container fade-in">
+      ${hasMemSession ? `
+      <div class="progress-section" style="display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;">
+        <div><strong>上次背题还未完成</strong><br><span style="font-size:12px;color:var(--gray-400);">可以继续上次的进度，或开始新一轮</span></div>
+        <div style="display:flex;gap:8px;">
+          <button class="btn btn-primary" onclick="continueMemorize()">▶️ 继续背题</button>
+          <button class="btn btn-secondary" onclick="clearMemSession();renderMemSetup()">丢弃</button>
+        </div>
+      </div>` : ''}
+
+      <div class="progress-section" id="memSetupPanel">
+        <h3>背题模式 <span style="font-size:12px;color:var(--gray-400);font-weight:400;">直接显示答案与解析，自评「记住了/没记住」，记不住的自动排到本轮末尾重背一次</span></h3>
+        ${chipRow('分类', 's', ['all', ...SUBJECTS], subjCounts)}
+        ${chipRow('题型', 't', ['all', ...TYPE_NAMES], typeCounts)}
+        ${chipRow('难度', 'd', ['all', ...diffList], diffCounts)}
+        ${chipRow('状态', 'status', ['all', 'unmastered', 'mastered', 'wrong', 'fav'], null, MEM_STATUS_LABELS)}
+        ${singleChipRow('题量', 'count', [[10, '10 题'], [20, '20 题'], [30, '30 题'], [50, '50 题'], [100, '100 题'], [200, '200 题'], [0, '全部']])}
+        ${singleChipRow('顺序', 'order', [['random', '🔀 随机'], ['seq', '📖 按顺序']])}
+        <div style="margin-top:20px;display:flex;gap:12px;align-items:center;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="startMemFromSetup()">🧠 开始背题</button>
+          <span id="memCountText" style="font-size:13px;color:var(--gray-500);"></span>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('topbarActions').innerHTML = '';
+  memUpdateSetupCount();
+}
+
+// ---- 背题主界面 ----
+function renderMemorize() {
+  if (!memQuestions.length) { renderMemSetup(); return; }
+  if (memFinished) { renderMemSummary(); return; }
+
+  const q = memQuestions[memIndex];
+  const total = memQuestions.length;
+  const current = memIndex + 1;
+  const isFav = favorites.has(q.i);
+  const isMastered = mastered.has(q.i);
+  const tname = TYPE_NAMES[q.t];
+
+  let bodyHtml = '';
+  if (q.t === 3) {
+    bodyHtml = `
+      <div class="blank-area">
+        <div class="blank-answers"><span class="ba right">正确答案：${esc(q.a)}</span></div>
+      </div>`;
+  } else {
+    bodyHtml = `<div class="options-list">` + q.o.map((text, idx) => {
+      const opt = OPTION_KEYS[idx];
+      const cls = q.a.split('').includes(opt) ? 'correct disabled' : 'disabled';
+      return `
+        <div class="option-item ${cls}">
+          <span class="option-key">${opt}</span>
+          <span class="option-text">${esc(text)}</span>
+        </div>`;
+    }).join('') + `</div>`;
+  }
+
+  const analysisHtml = `
+      <div class="analysis-section fade-in">
+        <div class="answer-result correct">
+          ✅ 正确答案: ${esc(q.a)}
+          <span style="color:var(--gray-500);font-weight:400;font-size:13px;margin-left:8px;">${isMastered ? '⭐ 已掌握' : '📌 未掌握'}</span>
+        </div>
+        <h4>💡 解析</h4>
+        <p>${esc(q.e) || '暂无解析'}</p>
+      </div>`;
+
+  const actionsHtml = `
+       <button class="btn btn-primary" onclick="memRate(true)">😊 记住了</button>
+       <button class="btn btn-danger" onclick="memRate(false)">😵 没记住</button>`;
+
+  document.getElementById('contentArea').innerHTML = `
+    <div class="practice-container fade-in">
+      <div class="practice-progress">
+        <span style="font-size:13px;color:var(--gray-500);font-weight:600;">${current}/${total}</span>
+        <div class="practice-progress-bar"><div class="practice-progress-fill" style="width:${current / total * 100}%"></div></div>
+        <div class="mem-stat-row">
+          <span>😊 ${memRoundKnown}</span>
+          <span>😵 ${memRoundUnknown}</span>
+          <span>⭐ 已掌握 ${mastered.size}</span>
+        </div>
+      </div>
+
+      <div class="question-card">
+        <div class="question-header">
+          <span class="question-number">第 ${q.i} 题</span>
+          <span class="question-type ${TYPE_CLASS[q.t]}">${tname}</span>
+          <span class="mini-tag">${esc(q.s)}</span>
+          ${q.p && q.p !== '综合' ? `<span class="mini-tag">${esc(q.p)}</span>` : ''}
+          <span class="mini-tag">${esc(q.d)}</span>
+          ${isMastered ? '<span class="tag tag-outline">⭐ 已掌握</span>' : ''}
+          <button class="fav-btn ${isFav ? 'active' : ''}" onclick="toggleFavorite(${q.i})" title="收藏">★</button>
+        </div>
+        <div class="question-content">${esc(q.c)}</div>
+        ${bodyHtml}
+        ${analysisHtml}
+      </div>
+
+      <div class="mem-actions">
+        <button class="btn btn-secondary" onclick="memPrev()" ${memIndex === 0 ? 'disabled style="opacity:0.4"' : ''}>← 上一题</button>
+        ${actionsHtml}
+      </div>
+      <p class="mem-hint">原题号 ${esc(q.n)} · 快捷键：<kbd>1</kbd> 记住了，<kbd>2</kbd> 没记住</p>
+    </div>`;
+
+  saveMemSession();
+  document.getElementById('topbarActions').innerHTML = `
+    <button class="btn btn-secondary" onclick="showMemSetup()">⚙️ 重新选题</button>
+    <button class="btn btn-ghost" onclick="showPage('overview')">退出背题</button>`;
+}
+
+function memRate(known) {
+  const q = memQuestions[memIndex];
+  if (!q) return;
+  if (known) {
+    mastered.add(q.i);
+    memRoundKnown++;
+  } else {
+    mastered.delete(q.i);
+    memRoundUnknown++;
+    if (!memRetried.has(q.i)) {
+      memRetried.add(q.i);
+      memQuestions.push(q); // 本轮末尾重背一次
+    }
+  }
+  LS.set('mastered', [...mastered]);
+  if (memIndex >= memQuestions.length - 1) memFinished = true;
+  else memIndex++;
+  updateBadges();
+  saveMemSession();
+  renderMemorize();
+}
+function memPrev() {
+  if (memIndex > 0) { memIndex--; saveMemSession(); renderMemorize(); }
+}
+function memUniqueList() {
+  const seen = new Set();
+  return memQuestions.filter(q => { if (seen.has(q.i)) return false; seen.add(q.i); return true; });
+}
+function memAgain() {
+  const list = memUniqueList();
+  const un = list.filter(q => !mastered.has(q.i));
+  beginMemorize(shuffleArray(un.length ? un : list));
+}
+function memRestart() {
+  beginMemorize(memUniqueList());
+}
+function renderMemSummary() {
+  const uniq = memUniqueList();
+  const masteredInRound = uniq.filter(q => mastered.has(q.i)).length;
+  document.getElementById('contentArea').innerHTML = `
+    <div class="practice-container fade-in">
+      <div class="question-card" style="text-align:center;padding:40px 24px;">
+        <div style="font-size:48px;">🎉</div>
+        <h3 style="margin:12px 0;">本轮背题完成！</h3>
+        <p style="color:var(--gray-500);">本轮 ${uniq.length} 题 · 记住 <strong style="color:var(--success);">${memRoundKnown}</strong> 次 · 没记住 <strong style="color:var(--danger);">${memRoundUnknown}</strong> 次</p>
+        <p style="color:var(--gray-500);margin-top:6px;">其中已掌握 <strong>${masteredInRound}</strong> 题，未掌握 <strong>${uniq.length - masteredInRound}</strong> 题</p>
+        <div style="margin-top:24px;display:flex;gap:12px;justify-content:center;flex-wrap:wrap;">
+          <button class="btn btn-primary" onclick="memAgain()">🔁 再背一轮（未掌握优先）</button>
+          <button class="btn btn-secondary" onclick="memRestart()">🔄 重背本轮全部</button>
+          <button class="btn btn-secondary" onclick="showMemSetup()">⚙️ 重新选题</button>
+          <button class="btn btn-ghost" onclick="showPage('overview')">返回概览</button>
+        </div>
+      </div>
+    </div>`;
+  document.getElementById('topbarActions').innerHTML = '';
+}
+
+// 背题快捷键：1 记住了，2 没记住
+document.addEventListener('keydown', e => {
+  if (currentPage !== 'memorize' || memFinished || !memQuestions.length) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'textarea') return;
+  if (e.key === '1') {
+    memRate(true);
+  } else if (e.key === '2') {
+    memRate(false);
+  }
+});
+
 // ===================== 设置 =====================
 function renderSettings() {
   document.getElementById('contentArea').innerHTML = `
@@ -1663,7 +2059,7 @@ function renderSettings() {
           <div class="toggle ${settings.randomOrder ? 'active' : ''}" onclick="toggleSetting('randomOrder')"></div>
         </div>
         <div class="settings-row">
-          <div><div class="settings-label">答对自动下一题</div><div class="settings-desc">答对后自动跳转到下一题</div></div>
+          <div><div class="settings-label">答对自动下一题</div><div class="settings-desc">答对后自动跳转到下一题（单选、判断题答对始终自动跳转）</div></div>
           <div class="toggle ${settings.autoNext ? 'active' : ''}" onclick="toggleSetting('autoNext')"></div>
         </div>
       </div>
@@ -1681,6 +2077,10 @@ function renderSettings() {
         <div class="settings-row">
           <div><div class="settings-label">清除错题</div><div class="settings-desc">清除错题本中的所有记录</div></div>
           <button class="btn btn-danger btn-sm" onclick="clearData('wrong')">清除</button>
+        </div>
+        <div class="settings-row">
+          <div><div class="settings-label">清除背题进度</div><div class="settings-desc">清除背题模式中「已掌握」的记录</div></div>
+          <button class="btn btn-danger btn-sm" onclick="clearData('memorized')">清除</button>
         </div>
         <div class="settings-row">
           <div><div class="settings-label">重置所有数据</div><div class="settings-desc">清除所有本地数据，恢复初始状态</div></div>
@@ -1702,10 +2102,12 @@ function clearData(type) {
   if (type === 'answered' || type === 'all') { answered = {}; LS.set('answered', {}); }
   if (type === 'favorites' || type === 'all') { favorites = new Set(); LS.set('favorites', []); }
   if (type === 'wrong' || type === 'all') { wrongAnswers = new Set(); LS.set('wrongAnswers', []); }
+  if (type === 'memorized' || type === 'all') { mastered = new Set(); LS.set('mastered', []); }
   if (type === 'all') {
     settings = { showAnalysis: true, randomOrder: false, autoNext: false };
     LS.set('settings', settings);
     clearPracticeSession();
+    clearMemSession();
   }
   updateBadges();
   showToast('已清除');
@@ -1723,6 +2125,8 @@ function toggleFavorite(id) {
 function updateBadges() {
   document.getElementById('favBadge').textContent = favorites.size;
   document.getElementById('wrongBadge').textContent = wrongAnswers.size;
+  const memBadge = document.getElementById('memBadge');
+  if (memBadge) memBadge.textContent = mastered.size;
 }
 
 // ===================== 初始化 =====================
@@ -1731,6 +2135,7 @@ function loadData() {
     document.getElementById('totalCount').textContent = QUESTIONS.length;
     document.getElementById('browseBadge').textContent = QUESTIONS.length;
     loadPracticeSession();
+    loadMemSession();
     updateBadges();
     document.getElementById('loadingScreen').style.display = 'none';
     document.getElementById('app').style.display = 'flex';
