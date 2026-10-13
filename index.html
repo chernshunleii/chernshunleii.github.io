@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>测试页面</title>
+  <style>
+    :root {
+      --bg: #f5f7fa;
+      --card: #ffffff;
+      --text: #1f2933;
+      --muted: #6b7280;
+      --accent: #2563eb;
+      --border: #e5e7eb;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC",
+        "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+      background: var(--bg);
+      color: var(--text);
+      padding: 24px;
+    }
+    .card {
+      background: var(--card);
+      border: 1px solid var(--border);
+      border-radius: 16px;
+      padding: 40px 36px;
+      max-width: 520px;
+      width: 100%;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+      text-align: center;
+    }
+    h1 {
+      margin: 0 0 12px;
+      font-size: 26px;
+      letter-spacing: -0.02em;
+    }
+    p.subtitle {
+      margin: 0 0 28px;
+      color: var(--muted);
+      font-size: 15px;
+      line-height: 1.6;
+    }
+    button {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      border-radius: 10px;
+      padding: 12px 28px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: transform .12s ease, box-shadow .12s ease, background .12s ease;
+    }
+    button:hover {
+      background: #1d4ed8;
+      box-shadow: 0 6px 16px rgba(37, 99, 235, .3);
+    }
+    button:active { transform: translateY(1px); }
+    #output {
+      margin-top: 22px;
+      font-size: 14px;
+      color: var(--muted);
+      min-height: 20px;
+    }
+    .status {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      margin-top: 30px;
+      padding: 8px 14px;
+      border-radius: 999px;
+      background: #f0fdf4;
+      color: #15803d;
+      font-size: 13px;
+      font-weight: 500;
+    }
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #22c55e;
+    }
+  </style>
+</head>
+<body>
+  <main class="card">
+    <h1>测试页面</h1>
+    <p class="subtitle">
+      这是一个用于验证环境是否正常工作的测试网页。<br>
+      点击下方按钮可测试页面的 JavaScript 是否正常执行。
+    </p>
+    <button id="testBtn">点击测试</button>
+    <div id="output"></div>
+    <div class="status">
+      <span class="dot"></span>
+      <span id="statusText">页面加载正常</span>
+    </div>
+  </main>
+
+  <script>
+    var count = 0;
+    var btn = document.getElementById('testBtn');
+    var output = document.getElementById('output');
+    var statusText = document.getElementById('statusText');
+
+    btn.addEventListener('click', function () {
+      count++;
+      var now = new Date().toLocaleTimeString('zh-CN');
+      output.textContent = '已点击 ' + count + ' 次，最近一次：' + now;
+      statusText.textContent = 'JavaScript 运行正常';
+    });
+
+    // 输出页面加载时间，便于确认脚本已执行
+    console.log('测试页面加载完成：', new Date().toLocaleString('zh-CN'));
+  </script>
+</body>
+</html>
