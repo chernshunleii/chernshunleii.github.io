@@ -459,7 +459,22 @@ body {
 .practice-nav {
   display: flex;
   justify-content: space-between;
+  align-items: center;
+  gap: 8px;
   margin-top: 20px;
+}
+.practice-nav .nav-prev {
+  min-width: 110px;
+  justify-content: center;
+}
+.practice-nav .nav-actions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+}
+.practice-nav .nav-actions .btn {
+  min-width: 110px;
+  justify-content: center;
 }
 
 /* Question List */
@@ -649,8 +664,9 @@ body {
   .topbar { padding: 12px 16px; }
   .stats-grid { grid-template-columns: repeat(2, 1fr); }
   .filter-bar { flex-direction: column; align-items: stretch; }
-  .practice-nav { flex-direction: column; gap: 10px; }
-  .practice-nav .btn { justify-content: center; }
+  .practice-nav { flex-wrap: wrap; gap: 8px; }
+  .practice-nav .nav-actions { display: contents; }
+  .practice-nav .btn { flex: 1 1 0; min-width: 0; justify-content: center; padding: 8px 6px; }
 }
 
 /* Animations */
@@ -829,6 +845,10 @@ let answered = JSON.parse(localStorage.getItem('answered') || '{}');
 let practiceAnswers = {};
 // 当前题目尚未提交的选择：不写入 localStorage，也不参与正误统计
 let pendingSelections = {};
+// ===================== 背题模式 =====================
+// 开启后直接显示正确选项与解析，无需作答
+let memorizePref = false;      // 概览页开关：控制所有练习入口是否以背题方式打开
+let practiceMemorize = false;  // 当前练习会话是否处于背题模式
 
 // ===================== 最近一次练习（可断点续做） =====================
 const PRACTICE_SESSION_KEY = 'practiceSession';
@@ -881,6 +901,7 @@ function savePracticeSession() {
     practiceIndex,
     practiceAnswers,
     pendingSelections,
+    memorize: practiceMemorize,
     savedAt: Date.now()
   };
   localStorage.setItem(PRACTICE_SESSION_KEY, JSON.stringify(session));
@@ -906,6 +927,7 @@ function loadPracticeSession() {
     practiceIndex = Math.min(Math.max(Number(session.practiceIndex) || 0, 0), practiceQuestions.length - 1);
     practiceAnswers = session.practiceAnswers && typeof session.practiceAnswers === 'object' ? session.practiceAnswers : {};
     pendingSelections = session.pendingSelections && typeof session.pendingSelections === 'object' ? session.pendingSelections : {};
+    practiceMemorize = !!session.memorize;
 
     // 若上一次练习已经完成，则不再作为“继续练习”。
     const unfinished = practiceQuestions.some(q => !practiceAnswers[q['序号']]);
@@ -1060,6 +1082,7 @@ function renderOverview() {
         <h3>练习入口</h3>
         <div style="display:flex;gap:10px;flex-wrap:wrap;">
           ${hasPracticeSession ? '<button class="btn btn-primary" onclick="continuePractice()">▶️ 继续上次练习</button>' : ''}
+          <button class="btn ${memorizePref ? 'btn-primary' : 'btn-secondary'}" onclick="toggleMemorizePref()" title="开启后所有练习入口直接显示正确答案与解析">📖 背题模式：${memorizePref ? '开' : '关'}</button>
           <button class="btn btn-primary" onclick="startPractice('all')">🎯 开始全部练习</button>
           <button class="btn btn-secondary" onclick="startPractice('random20')">🎲 随机20题</button>
           <button class="btn btn-secondary" onclick="startPractice('single')">📝 单选练习（${single}）</button>
@@ -1090,6 +1113,7 @@ function goToQuestion(id) {
     practiceIndex = idx;
     practiceAnswers = {};
     pendingSelections = {};
+    practiceMemorize = memorizePref;
     savePracticeSession();
     showPage('practice');
   }
@@ -1097,6 +1121,10 @@ function goToQuestion(id) {
 
 // ===================== Practice Mode =====================
 function startPractice(mode) {
+  // 背题模式：总开关（memorizePref）或模式后缀 |mem / 'memorize'
+  practiceMemorize = memorizePref || mode === 'memorize' || mode.endsWith('|mem');
+  if (mode === 'memorize') mode = 'all';
+  else if (mode.endsWith('|mem')) mode = mode.slice(0, -4);
   if (mode === 'wrong') {
     practiceQuestions = questions.filter(q => wrongAnswers.has(q['序号']));
     if (practiceQuestions.length === 0) {
@@ -1140,6 +1168,12 @@ function startPractice(mode) {
   showPage('practice');
 }
 
+function toggleMemorizePref() {
+  memorizePref = !memorizePref;
+  renderOverview();
+  showToast(memorizePref ? '背题模式已开启：直接显示正确答案与解析' : '背题模式已关闭');
+}
+
 function renderPractice() {
   if (practiceQuestions.length === 0) {
     document.getElementById('contentArea').innerHTML = `
@@ -1170,7 +1204,9 @@ function renderPractice() {
     const labels = [q['A'], q['B']];
     optionsHtml = opts.map((opt, i) => {
       let cls = '';
-      if (ans) {
+      if (practiceMemorize) {
+        cls = opt === q['正确选项'] ? 'correct disabled' : 'disabled';
+      } else if (ans) {
         if (opt === q['正确选项']) cls = 'correct disabled';
         else if (ans.selected === opt) cls = 'wrong disabled';
         else cls = 'disabled';
@@ -1188,7 +1224,10 @@ function renderPractice() {
     const opts = ['A', 'B', 'C', 'D'].filter(o => q[o] !== null && q[o] !== undefined);
     optionsHtml = opts.map(opt => {
       let cls = '';
-      if (ans) {
+      if (practiceMemorize) {
+        const memCorrect = q['正确选项'].split('');
+        cls = memCorrect.includes(opt) ? 'correct disabled' : 'disabled';
+      } else if (ans) {
         const correctOpts = q['正确选项'].split('');
         if (correctOpts.includes(opt)) cls = 'correct disabled';
         else if (ans.selected && ans.selected.includes(opt)) cls = 'wrong disabled';
@@ -1206,7 +1245,15 @@ function renderPractice() {
   }
 
   let analysisHtml = '';
-  if (ans && settings.showAnalysis) {
+  if (practiceMemorize) {
+    analysisHtml = `
+      <div class="analysis-section fade-in">
+        <div class="answer-result correct">📖 背题模式 · 正确答案: ${q['正确选项']}</div>
+        <h4>💡 解析</h4>
+        <p>${q['试题解析'] || '暂无解析'}</p>
+      </div>
+    `;
+  } else if (ans && settings.showAnalysis) {
     const correct = ans.correct;
     analysisHtml = `
       <div class="analysis-section fade-in">
@@ -1238,6 +1285,7 @@ function renderPractice() {
           <span class="question-number">第 ${q['序号']} 题</span>
           <span class="question-type ${type === '单选题' ? 'type-single' : type === '判断题' ? 'type-judge' : 'type-multi'}">${type}</span>
           ${catBadge(q)}
+          ${practiceMemorize ? '<span class="question-cat" style="color:#7c3aed;background:#7c3aed1a;border:1px solid #7c3aed33">📖 背题模式</span>' : ''}
           <button class="fav-btn ${isFav ? 'active' : ''}" onclick="toggleFavorite(${key})" title="收藏">★</button>
         </div>
         <div class="question-content">${q['试题内容']}</div>
@@ -1248,9 +1296,11 @@ function renderPractice() {
       </div>
       
       <div class="practice-nav">
-        <button class="btn btn-secondary" onclick="prevQuestion()" ${practiceIndex === 0 ? 'disabled style="opacity:0.4"' : ''}>← 上一题</button>
-        <div style="display:flex;gap:8px;">
-          ${!ans ? `
+        <button class="btn btn-secondary nav-prev" onclick="prevQuestion()" ${practiceIndex === 0 ? 'disabled style="opacity:0.4"' : ''}>← 上一题</button>
+        <div class="nav-actions">
+          ${practiceMemorize ? `
+            <button class="btn btn-primary" onclick="nextQuestion()">${practiceIndex === total - 1 ? '完成背题' : '下一题 →'}</button>
+          ` : !ans ? `
             <button class="btn btn-secondary" onclick="showAnswer()">查看答案</button>
             ${type === '多选题' ? `<button class="btn btn-primary" onclick="submitAnswer()">提交答案</button>` : ''}
           ` : `
@@ -1273,7 +1323,7 @@ function renderPractice() {
 function selectOption(opt) {
   const q = practiceQuestions[practiceIndex];
   const key = q['序号'];
-  if (practiceAnswers[key]) return;
+  if (practiceAnswers[key] || practiceMemorize) return;
 
   const type = q['试题类型'];
   let selected = pendingSelections[key] || '';
@@ -1316,7 +1366,7 @@ function submitAnswer() {
   const type = q['试题类型'];
 
   // 只要本次练习还没有提交，就允许重新作答，即使历史上做过这道题
-  if (practiceAnswers[key]) return;
+  if (practiceAnswers[key] || practiceMemorize) return;
 
   const selected = pendingSelections[key] || '';
   if (!selected) {
@@ -1400,7 +1450,7 @@ function nextQuestion() {
   } else {
     clearPracticeSession();
     showPage('overview');
-    showToast('练习完成！');
+    showToast(practiceMemorize ? '背题完成！' : '练习完成！');
   }
 }
 
