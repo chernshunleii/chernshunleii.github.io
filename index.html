@@ -2,30 +2,76 @@
 <html lang="zh-CN">
 <head>
 <meta charset="UTF-8">
+<!-- 移动端自适应核心 -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>题库导航</title>
 <style>
-.tab{display:none;}
-.tab.active{display:block;}
-.tab-btn{padding:8px 16px;cursor:pointer;}
+*{box-sizing:border-box;margin:0;padding:0;font-family:system-ui, sans-serif;}
+body{padding:12px;background:#f7f8fa;}
+
+/* 标签按钮容器，手机自动换行 */
+.tab-buttons{
+  display:flex;
+  flex-wrap:wrap;
+  gap:8px;
+  margin-bottom:12px;
+}
+.tab-btn{
+  padding:10px 18px;
+  border:none;
+  background:#e2e8f0;
+  border-radius:8px;
+  font-size:16px;
+  cursor:pointer;
+  transition:0.2s;
+}
+.tab-btn.active{
+  background:#2563eb;
+  color:#fff;
+}
+.tab-btn:hover:not(.active){
+  background:#cbd5e1;
+}
+
+/* 内容容器，iframe自适应 */
+.tab-content{
+  display:none;
+  width:100%;
+}
+.tab-content.active{
+  display:block;
+}
+iframe{
+  width:100%;
+  /* 高度占满屏幕，扣除顶部按钮区域 */
+  height: calc(100vh - 110px);
+  border-radius:8px;
+  border:1px solid #ddd;
+  background:#fff;
+}
 </style>
 </head>
 <body>
-<div>
-  <button class="tab-btn" onclick="openTab('tab1')">会计测试</button>
-  <button class="tab-btn" onclick="openTab('tab2')">题库2175</button>
+<div class="tab-buttons">
+  <button class="tab-btn active" onclick="openTab('tab1')">Accounting-Tests</button>
+  <button class="tab-btn" onclick="openTab('tab2')">题库(2175)</button>
 </div>
 
-<div id="tab1" class="tab active">
-<iframe src="Accounting-Tests.html" width="35%" height="100%"></iframe>
+<div id="tab1" class="tab-content active">
+  <iframe src="Accounting-Tests.html"></iframe>
 </div>
-<div id="tab2" class="tab">
-<iframe src="题库(2175）.html" width="35%" height="100%"></iframe>
+<div id="tab2" class="tab-content">
+  <iframe src="题库(2175）.html"></iframe>
 </div>
 
 <script>
-function openTab(tabId){
-  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+function openTab(tabId) {
+  // 清除所有active
+  document.querySelectorAll('.tab-content').forEach(tab=>tab.classList.remove('active'));
+  document.querySelectorAll('.tab-btn').forEach(btn=>btn.classList.remove('active'));
+  // 激活选中项
   document.getElementById(tabId).classList.add('active');
+  event.target.classList.add('active');
 }
 </script>
 </body>
